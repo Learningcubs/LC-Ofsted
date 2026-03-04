@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LC Ofsted Readiness</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', 'Segoe UI', sans-serif; background: #F8FAFB; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #D0D5DD; border-radius: 3px; }
+    button { font-family: inherit; }
+    select { font-family: inherit; }
+    
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .check-item:hover { background: #FAFAFA; }
+    .check-item.checked:hover { background: rgba(22,163,74,0.05); }
+    
+    .category-card { transition: all 0.2s; }
+    .category-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    
+    .loading-spinner {
+      width: 40px; height: 40px; border: 3px solid #E5E7EB;
+      border-top-color: #F07B2C; border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 40px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      color: white; z-index: 100; animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+    
+    // ═══════════════════════════════════════════════
+    //  CONFIG — UPDATE THIS WITH YOUR WEB APP URL
+    // ═══════════════════════════════════════════════
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxbHkH2_cENUi7cl-SrO_nmis19tNtrSIoSgqyOZLyeWv_Fhw977olRTfBO3akeizSG/exec';
+    // ═══════════════════════════════════════════════
+    
+    const NAVY = "#1B2A5B";
+    const ORANGE = "#F07B2C";
+    const GREEN = "#16A34A";
+    const AMBER = "#F59E0B";
+    const RED = "#DC2626";
+    
+    const CATEGORIES = [
+      {
+        id: "safeguarding", icon: "\u{1F6E1}\uFE0F", name: "Safeguarding & Child Protection", color: "#6366F1",
+        items: [
+          { id: "s1", text: "Designated Safeguarding Lead (DSL) appointed and trained within last 2 years" },
+          { id: "s2", text: "All staff completed Level 1 safeguarding training" },
+          { id: "s3", text: "Safeguarding policy reviewed and signed by all staff this term" },
+          { id: "s4", text: "Prevent Duty training up to date for all staff" },
+          { id: "s5", text: "Safeguarding concern log is maintained and up to date" },
+          { id: "s6", text: "Local authority referral contacts displayed and accessible" },
+          { id: "s7", text: "Mobile phone and camera policy enforced" },
+          { id: "s8", text: "Visitor sign-in procedure followed consistently" },
+        ]
+      },
+      {
+        id: "staff", icon: "\u{1F465}", name: "Staff Qualifications & DBS", color: "#8B5CF6",
+        items: [
+          { id: "st1", text: "All staff have enhanced DBS checks on file" },
+          { id: "st2", text: "DBS checks reviewed — none older than 3 years" },
+          { id: "st3", text: "Single Central Record (SCR) complete and up to date" },
+          { id: "st4", text: "All staff qualifications verified and copies held" },
+          { id: "st5", text: "Minimum Level 3 qualified staff ratio maintained" },
+          { id: "st6", text: "Paediatric First Aid certificates in date (min 2 staff)" },
+          { id: "st7", text: "Staff supervision records up to date (termly minimum)" },
+          { id: "st8", text: "New staff induction completed within first week" },
+        ]
+      },
+      {
+        id: "health", icon: "\u{1F525}", name: "Health & Safety / Fire", color: "#EF4444",
+        items: [
+          { id: "h1", text: "Fire risk assessment completed and reviewed annually" },
+          { id: "h2", text: "Fire drills conducted and recorded (termly minimum)" },
+          { id: "h3", text: "Fire extinguishers serviced within last 12 months" },
+          { id: "h4", text: "Accident and incident book maintained" },
+          { id: "h5", text: "Risk assessments for all rooms, outdoor areas and outings" },
+          { id: "h6", text: "Allergy and dietary information displayed in kitchen" },
+          { id: "h7", text: "Medication administration log up to date" },
+          { id: "h8", text: "COSHH: cleaning products stored securely, data sheets filed" },
+        ]
+      },
+      {
+        id: "policies", icon: "\u{1F4CB}", name: "Policies & Procedures", color: "#0EA5E9",
+        items: [
+          { id: "p1", text: "All mandatory policies reviewed within last 12 months" },
+          { id: "p2", text: "Behaviour management policy in place and followed" },
+          { id: "p3", text: "Complaints procedure displayed and accessible to parents" },
+          { id: "p4", text: "Equal opportunities and inclusion policy current" },
+          { id: "p5", text: "Data protection / GDPR policy reviewed and compliant" },
+          { id: "p6", text: "Staff code of conduct signed by all employees" },
+          { id: "p7", text: "Social media and online safety policy in place" },
+        ]
+      },
+      {
+        id: "premises", icon: "\u{1F3E0}", name: "Premises & Environment", color: "#10B981",
+        items: [
+          { id: "pr1", text: "Indoor space meets minimum sqm per child requirements" },
+          { id: "pr2", text: "Outdoor play area safe, secure and regularly inspected" },
+          { id: "pr3", text: "Toilet and nappy changing areas clean and well-stocked" },
+          { id: "pr4", text: "Room temperatures monitored and comfortable" },
+          { id: "pr5", text: "Equipment and furniture in good condition, age-appropriate" },
+          { id: "pr6", text: "Sleep area safe with clear monitoring procedures" },
+          { id: "pr7", text: "Security — entry/exit points controlled, buzzer/fob working" },
+        ]
+      },
+      {
+        id: "records", icon: "\u{1F4C1}", name: "Record Keeping & Admin", color: "#F97316",
+        items: [
+          { id: "r1", text: "Children's records complete (emergency contacts, medical, permissions)" },
+          { id: "r2", text: "Attendance register maintained daily" },
+          { id: "r3", text: "Staff attendance and rota records kept" },
+          { id: "r4", text: "Ofsted registration certificate displayed" },
+          { id: "r5", text: "Public liability insurance certificate displayed and in date" },
+          { id: "r6", text: "Employer's liability insurance displayed and in date" },
+          { id: "r7", text: "Food hygiene rating displayed (if applicable)" },
+          { id: "r8", text: "Two-year-old progress checks completed and shared with parents" },
+        ]
+      }
+    ];
+    
+    const TERMS = ["Spring 2026", "Summer 2026", "Autumn 2026"];
+    const CENTRES = ["Nelson", "Blackburn", "Keighley", "Bolton", "Bury", "Rochdale", "Burnley"];
+    
+    function getStatusColor(pct) {
+      if (pct >= 90) return GREEN;
+      if (pct >= 60) return AMBER;
+      return RED;
+    }
+    
+    function getStatusLabel(pct) {
+      if (pct >= 90) return "Ready";
+      if (pct >= 60) return "Needs Work";
+      return "At Risk";
+    }
+    
+    function CircularProgress({ percentage, size = 80, strokeWidth = 6 }) {
+      const radius = (size - strokeWidth) / 2;
+      const circumference = radius * 2 * Math.PI;
+      const offset = circumference - (percentage / 100) * circumference;
+      const color = getStatusColor(percentage);
+      return (
+        React.createElement('svg', { width: size, height: size, style: { transform: "rotate(-90deg)" } },
+          React.createElement('circle', { cx: size/2, cy: size/2, r: radius, fill: "none", stroke: "#E5E7EB", strokeWidth }),
+          React.createElement('circle', { cx: size/2, cy: size/2, r: radius, fill: "none", stroke: color, strokeWidth, strokeDasharray: circumference, strokeDashoffset: offset, strokeLinecap: "round", style: { transition: "stroke-dashoffset 0.6s ease" } }),
+          React.createElement('text', { x: size/2, y: size/2, textAnchor: "middle", dominantBaseline: "central", style: { transform: "rotate(90deg)", transformOrigin: "center", fontSize: size > 60 ? "16px" : "12px", fontWeight: 700, fill: color, fontFamily: "'DM Sans', sans-serif" } }, `${percentage}%`)
+        )
+      );
+    }
+    
+    function App() {
+      const [selectedTerm, setSelectedTerm] = useState("Spring 2026");
+      const [selectedCentre, setSelectedCentre] = useState("Nelson");
+      const [expandedCat, setExpandedCat] = useState(null);
+      const [view, setView] = useState("checklist");
+      const [checks, setChecks] = useState({});
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [userEmail, setUserEmail] = useState("");
+      const [userRole, setUserRole] = useState("");
+      const [userCentres, setUserCentres] = useState([]);
+      const saveTimeout = useRef(null);
+      
+      // Get user email from URL params (Glide passes this)
+      useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const email = params.get('email') || '';
+        setUserEmail(email);
+      }, []);
+      
+      // Load data from API
+      useEffect(() => {
+        if (API_URL === 'YOUR_WEBAPP_URL_HERE') {
+          setLoading(false);
+          return;
+        }
+        
+        fetch(API_URL)
+          .then(r => r.json())
+          .then(data => {
+            if (data.items) {
+              const loaded = {};
+              data.items.forEach(item => {
+                const key = `${item.Centre}|${item.Term}|${item.Item_ID}`;
+                loaded[key] = String(item.Checked).toLowerCase() === 'yes';
+              });
+              setChecks(loaded);
+            }
+            
+            // Determine user role and centres from registry
+            if (data.registry && userEmail) {
+              const email = userEmail.toLowerCase();
+              const matches = data.registry.filter(r => 
+                String(r.Owner_Email || '').toLowerCase() === email
+              );
+              if (matches.length > 0) {
+                setUserRole(matches[0].Role || 'Owner');
+                setUserCentres(matches.map(r => r.Centre));
+                setSelectedCentre(matches[0].Centre);
+              }
+            }
+            
+            setLoading(false);
+          })
+          .catch(err => {
+            console.error('Load error:', err);
+            setLoading(false);
+          });
+      }, [userEmail]);
+      
+      const getKey = (centre, term, itemId) => `${centre}|${term}|${itemId}`;
+      
+      const saveToAPI = useCallback((updatedChecks, centre, term, items) => {
+        if (API_URL === 'YOUR_WEBAPP_URL_HERE') return;
+        
+        setSaving(true);
+        const updates = items.map(item => ({
+          centre,
+          term,
+          category: CATEGORIES.find(c => c.items.some(i => i.id === item.id))?.name || '',
+          item_id: item.id,
+          item_text: item.text,
+          checked: !!updatedChecks[getKey(centre, term, item.id)],
+          email: userEmail
+        }));
+        
+        fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates })
+        })
+        .then(r => r.json())
+        .then(() => {
+          setSaving(false);
+          showToast('Saved', GREEN);
+        })
+        .catch(err => {
+          setSaving(false);
+          showToast('Save failed', RED);
+          console.error(err);
+        });
+      }, [userEmail]);
+      
+      const showToast = (msg, color) => {
+        setToast({ msg, color });
+        setTimeout(() => setToast(null), 2000);
+      };
+      
+      const toggleCheck = (itemId) => {
+        const key = getKey(selectedCentre, selectedTerm, itemId);
+        const newChecks = { ...checks, [key]: !checks[key] };
+        setChecks(newChecks);
+        
+        // Debounce save
+        clearTimeout(saveTimeout.current);
+        const item = CATEGORIES.flatMap(c => c.items).find(i => i.id === itemId);
+        saveTimeout.current = setTimeout(() => {
+          saveToAPI(newChecks, selectedCentre, selectedTerm, item ? [item] : []);
+        }, 500);
+      };
+      
+      const bulkUpdate = (cat, checked) => {
+        const newChecks = { ...checks };
+        cat.items.forEach(item => {
+          newChecks[getKey(selectedCentre, selectedTerm, item.id)] = checked;
+        });
+        setChecks(newChecks);
+        saveToAPI(newChecks, selectedCentre, selectedTerm, cat.items);
+      };
+      
+      const getCategoryProgress = (cat, centre, term) => {
+        centre = centre || selectedCentre;
+        term = term || selectedTerm;
+        const checked = cat.items.filter(item => checks[getKey(centre, term, item.id)]).length;
+        return Math.round((checked / cat.items.length) * 100);
+      };
+      
+      const getOverallProgress = (centre, term) => {
+        centre = centre || selectedCentre;
+        term = term || selectedTerm;
+        const totalItems = CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
+        const checkedItems = CATEGORIES.reduce((sum, cat) =>
+          sum + cat.items.filter(item => checks[getKey(centre, term, item.id)]).length, 0);
+        return totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
+      };
+      
+      const visibleCentres = userRole === 'HQ' ? CENTRES : (userCentres.length > 0 ? userCentres : CENTRES);
+      
+      if (loading) {
+        return (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+            <div className="loading-spinner"></div>
+            <p style={{ marginTop: 16, color: "#999", fontSize: 14 }}>Loading checklist...</p>
+          </div>
+        );
+      }
+      
+      return (
+        <div style={{ minHeight: "100vh" }}>
+          {/* Toast */}
+          {toast && (
+            <div className="toast" style={{ background: toast.color }}>
+              {toast.msg}
+            </div>
+          )}
+          
+          {/* Header */}
+          <div style={{
+            background: `linear-gradient(135deg, ${NAVY} 0%, #2D3F7B 100%)`,
+            padding: "24px 24px 16px", position: "relative", overflow: "hidden"
+          }}>
+            <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: "rgba(240,123,44,0.08)" }} />
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <div style={{ background: ORANGE, borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "white", fontSize: 13 }}>LC</div>
+                  <h1 style={{ color: "white", fontSize: 20, fontWeight: 700, letterSpacing: "-0.3px" }}>Ofsted Readiness</h1>
+                </div>
+                <p style={{ color: "rgba(255,255,255,0.5)", marginLeft: 44, fontSize: 12 }}>Termly compliance checklist</p>
+              </div>
+              
+              <div style={{ display: "flex", background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: 2 }}>
+                {[{ id: "checklist", label: "\u{1F4CB} Centre" }, { id: "hq", label: "\u{1F3E2} HQ" }].map(v => (
+                  <button key={v.id} onClick={() => setView(v.id)} style={{
+                    padding: "6px 14px", border: "none", borderRadius: 6, cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    background: view === v.id ? "rgba(255,255,255,0.2)" : "transparent",
+                    color: view === v.id ? "white" : "rgba(255,255,255,0.5)", transition: "all 0.2s"
+                  }}>{v.label}</button>
+                ))}
+              </div>
+            </div>
+            
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", position: "relative" }}>
+              <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.08)", borderRadius: 8, padding: 2 }}>
+                {TERMS.map(t => (
+                  <button key={t} onClick={() => setSelectedTerm(t)} style={{
+                    padding: "6px 12px", border: "none", borderRadius: 6, cursor: "pointer",
+                    fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+                    background: selectedTerm === t ? ORANGE : "transparent",
+                    color: selectedTerm === t ? "white" : "rgba(255,255,255,0.5)", transition: "all 0.2s"
+                  }}>{t}</button>
+                ))}
+              </div>
+              {view === "checklist" && (
+                <select value={selectedCentre} onChange={e => setSelectedCentre(e.target.value)} style={{
+                  padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.1)", color: "white", fontSize: 12,
+                  fontWeight: 600, cursor: "pointer", outline: "none"
+                }}>
+                  {(userRole === 'HQ' ? CENTRES : visibleCentres).map(c => (
+                    <option key={c} value={c} style={{ color: "#333" }}>{c}</option>
+                  ))}
+                </select>
+              )}
+              {saving && <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, alignSelf: "center" }}>Saving...</span>}
+            </div>
+          </div>
+          
+          {/* Content */}
+          <div style={{ padding: "20px 20px", maxWidth: 900, margin: "0 auto" }}>
+            {view === "checklist" ? (
+              <div className="fade-in">
+                {/* Overall Progress */}
+                <div style={{
+                  background: "white", borderRadius: 14, padding: "20px 24px",
+                  display: "flex", alignItems: "center", gap: 20, marginBottom: 20,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0"
+                }}>
+                  <CircularProgress percentage={getOverallProgress()} size={80} strokeWidth={6} />
+                  <div style={{ flex: 1 }}>
+                    <h2 style={{ fontSize: 17, color: NAVY, fontWeight: 700, marginBottom: 4 }}>
+                      {selectedCentre} — {selectedTerm}
+                    </h2>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{
+                        display: "inline-block", padding: "2px 9px", borderRadius: 16,
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.3px",
+                        background: `${getStatusColor(getOverallProgress())}18`,
+                        color: getStatusColor(getOverallProgress())
+                      }}>{getStatusLabel(getOverallProgress())}</span>
+                      <span style={{ fontSize: 12, color: "#999" }}>
+                        {CATEGORIES.reduce((s, c) => s + c.items.filter(i => checks[getKey(selectedCentre, selectedTerm, i.id)]).length, 0)} of {CATEGORIES.reduce((s, c) => s + c.items.length, 0)} items
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Categories */}
+                {CATEGORIES.map(cat => {
+                  const progress = getCategoryProgress(cat);
+                  const isExpanded = expandedCat === cat.id;
+                  return (
+                    <div key={cat.id} className="category-card" style={{
+                      background: "white", borderRadius: 12, marginBottom: 10,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)", border: "1px solid #F0F0F0", overflow: "hidden"
+                    }}>
+                      <div onClick={() => setExpandedCat(isExpanded ? null : cat.id)} style={{
+                        padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", userSelect: "none"
+                      }}>
+                        <div style={{
+                          width: 38, height: 38, borderRadius: 10, background: `${cat.color}12`,
+                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0
+                        }}>{cat.icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: NAVY }}>{cat.name}</div>
+                          <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>
+                            {cat.items.filter(i => checks[getKey(selectedCentre, selectedTerm, i.id)]).length}/{cat.items.length} complete
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 80, height: 5, borderRadius: 3, background: "#F0F0F0", overflow: "hidden" }}>
+                            <div style={{ width: `${progress}%`, height: "100%", borderRadius: 3, background: getStatusColor(progress), transition: "width 0.4s ease" }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: getStatusColor(progress), minWidth: 32, textAlign: "right" }}>{progress}%</span>
+                          <span style={{ fontSize: 16, color: "#CCC", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", display: "inline-block" }}>{"\u25BE"}</span>
+                        </div>
+                      </div>
+                      
+                      {isExpanded && (
+                        <div className="fade-in" style={{ borderTop: "1px solid #F5F5F5", padding: "6px 16px 14px" }}>
+                          {cat.items.map(item => {
+                            const isChecked = !!checks[getKey(selectedCentre, selectedTerm, item.id)];
+                            return (
+                              <div key={item.id} className={`check-item ${isChecked ? 'checked' : ''}`} onClick={() => toggleCheck(item.id)} style={{
+                                display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 6px",
+                                cursor: "pointer", borderRadius: 6, transition: "background 0.15s",
+                                background: isChecked ? "rgba(22,163,74,0.04)" : "transparent"
+                              }}>
+                                <div style={{
+                                  width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 1,
+                                  border: isChecked ? "none" : "2px solid #D0D5DD",
+                                  background: isChecked ? GREEN : "white",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  transition: "all 0.2s", boxShadow: isChecked ? `0 2px 6px ${GREEN}40` : "none"
+                                }}>
+                                  {isChecked && (
+                                    <svg width="12" height="9" viewBox="0 0 13 10" fill="none">
+                                      <path d="M1.5 5L4.5 8L11.5 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  )}
+                                </div>
+                                <span style={{
+                                  fontSize: 13, lineHeight: "1.4", color: isChecked ? "#9CA3AF" : "#374151",
+                                  textDecoration: isChecked ? "line-through" : "none", transition: "all 0.2s"
+                                }}>{item.text}</span>
+                              </div>
+                            );
+                          })}
+                          <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #F5F5F5" }}>
+                            <button onClick={e => { e.stopPropagation(); bulkUpdate(cat, true); }} style={{
+                              padding: "5px 12px", borderRadius: 6, border: `1px solid ${GREEN}40`,
+                              background: `${GREEN}08`, color: GREEN, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                            }}>{"\u2713"} Mark all</button>
+                            <button onClick={e => { e.stopPropagation(); bulkUpdate(cat, false); }} style={{
+                              padding: "5px 12px", borderRadius: 6, border: "1px solid #E5E7EB",
+                              background: "white", color: "#999", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                            }}>{"\u21BA"} Reset</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* HQ VIEW */
+              <div className="fade-in">
+                <h2 style={{ fontSize: 17, color: NAVY, fontWeight: 700, marginBottom: 16 }}>
+                  All Centres — {selectedTerm}
+                </h2>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 24 }}>
+                  {[
+                    { label: "Ready", color: GREEN, count: CENTRES.filter(c => getOverallProgress(c, selectedTerm) >= 90).length },
+                    { label: "Needs Work", color: AMBER, count: CENTRES.filter(c => { const p = getOverallProgress(c, selectedTerm); return p >= 60 && p < 90; }).length },
+                    { label: "At Risk", color: RED, count: CENTRES.filter(c => getOverallProgress(c, selectedTerm) < 60).length }
+                  ].map(s => (
+                    <div key={s.label} style={{
+                      background: "white", borderRadius: 12, padding: "14px 16px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)", border: "1px solid #F0F0F0", textAlign: "center"
+                    }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.count}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#999", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                
+                {CENTRES.map(centre => {
+                  const overall = getOverallProgress(centre, selectedTerm);
+                  return (
+                    <div key={centre} style={{
+                      background: "white", borderRadius: 12, padding: "16px 18px",
+                      marginBottom: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", border: "1px solid #F0F0F0"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+                        <CircularProgress percentage={overall} size={50} strokeWidth={4} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{centre}</div>
+                          <span style={{
+                            display: "inline-block", padding: "1px 7px", borderRadius: 10,
+                            fontSize: 10, fontWeight: 700,
+                            background: `${getStatusColor(overall)}15`, color: getStatusColor(overall)
+                          }}>{getStatusLabel(overall)}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                        {CATEGORIES.map(cat => {
+                          const pct = getCategoryProgress(cat, centre, selectedTerm);
+                          return (
+                            <div key={cat.id} style={{
+                              background: "#FAFAFA", borderRadius: 6, padding: "6px 8px",
+                              display: "flex", alignItems: "center", gap: 6
+                            }}>
+                              <span style={{ fontSize: 12 }}>{cat.icon}</span>
+                              <div style={{ flex: 1, height: 4, borderRadius: 2, background: "#E5E7EB", overflow: "hidden" }}>
+                                <div style={{ width: `${pct}%`, height: "100%", borderRadius: 2, background: getStatusColor(pct), transition: "width 0.4s" }} />
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: getStatusColor(pct), minWidth: 24 }}>{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
