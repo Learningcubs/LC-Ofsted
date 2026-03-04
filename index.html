@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,7 +51,7 @@
     // ═══════════════════════════════════════════════
     //  CONFIG — UPDATE THIS WITH YOUR WEB APP URL
     // ═══════════════════════════════════════════════
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxbHkH2_cENUi7cl-SrO_nmis19tNtrSIoSgqyOZLyeWv_Fhw977olRTfBO3akeizSG/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbydtYtBUNqRwMa5Ll37J5Uqx7kY6f3i4bMTdDOJ5F4mW-KELH4jtwTfqU_UeQE2vdW-/exec';
     // ═══════════════════════════════════════════════
     
     const NAVY = "#1B2A5B";
@@ -195,31 +196,34 @@
           return;
         }
         
-        fetch(API_URL)
-          .then(r => r.json())
-          .then(data => {
-            if (data.items) {
-              const loaded = {};
-              data.items.forEach(item => {
-                const key = `${item.Centre}|${item.Term}|${item.Item_ID}`;
-                loaded[key] = String(item.Checked).toLowerCase() === 'yes';
-              });
-              setChecks(loaded);
-            }
-            
-            // Determine user role and centres from registry
-            if (data.registry && userEmail) {
-              const email = userEmail.toLowerCase();
-              const matches = data.registry.filter(r => 
-                String(r.Owner_Email || '').toLowerCase() === email
-              );
-              if (matches.length > 0) {
-                setUserRole(matches[0].Role || 'Owner');
-                setUserCentres(matches.map(r => r.Centre));
-                setSelectedCentre(matches[0].Centre);
+        fetch(API_URL, { redirect: 'follow' })
+          .then(r => r.text())
+          .then(text => {
+            try {
+              const data = JSON.parse(text);
+              if (data.items) {
+                const loaded = {};
+                data.items.forEach(item => {
+                  const key = `${item.Centre}|${item.Term}|${item.Item_ID}`;
+                  loaded[key] = String(item.Checked).toLowerCase() === 'yes';
+                });
+                setChecks(loaded);
               }
+              
+              if (data.registry && userEmail) {
+                const email = userEmail.toLowerCase();
+                const matches = data.registry.filter(r => 
+                  String(r.Owner_Email || '').toLowerCase() === email
+                );
+                if (matches.length > 0) {
+                  setUserRole(matches[0].Role || 'Owner');
+                  setUserCentres(matches.map(r => r.Centre));
+                  setSelectedCentre(matches[0].Centre);
+                }
+              }
+            } catch(e) {
+              console.error('Parse error:', e, text.substring(0, 200));
             }
-            
             setLoading(false);
           })
           .catch(err => {
@@ -246,11 +250,13 @@
         
         fetch(API_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ updates })
         })
-        .then(r => r.json())
-        .then(() => {
+        .then(r => r.text())
+        .then(text => {
+          try { JSON.parse(text); } catch(e) { console.error('Save parse error:', text.substring(0, 200)); }
           setSaving(false);
           showToast('Saved', GREEN);
         })
